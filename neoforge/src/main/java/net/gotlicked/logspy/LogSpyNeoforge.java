@@ -1,4 +1,4 @@
-package net.gotlicked.LogSpy;
+package net.gotlicked.logspy;
 
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModList;
@@ -6,9 +6,9 @@ import net.neoforged.fml.common.Mod;
 
 /** NeoForge @Mod entrypoint. Installs the pipeline and registers mod JAR locations. */
 @Mod(Constants.MOD_ID)
-public final class ExampleMod {
+public final class LogSpyNeoforge {
 
-    public ExampleMod(IEventBus eventBus) {
+    public LogSpyNeoforge(IEventBus eventBus) {
         LogSpyCore.init();
 
         ModList.get().getMods().forEach(info -> {

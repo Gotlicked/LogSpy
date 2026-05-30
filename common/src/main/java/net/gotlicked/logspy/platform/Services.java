@@ -1,7 +1,7 @@
-package net.gotlicked.LogSpy.platform;
+package net.gotlicked.logspy.platform;
 
-import net.gotlicked.LogSpy.Constants;
-import net.gotlicked.LogSpy.platform.services.IPlatformHelper;
+import net.gotlicked.logspy.Constants;
+import net.gotlicked.logspy.platform.services.IPlatformHelper;
 import java.util.ServiceLoader;
 
 /** Loads platform-specific service implementations via Java's ServiceLoader. */

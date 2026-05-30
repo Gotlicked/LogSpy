@@ -1,6 +1,6 @@
-package net.gotlicked.LogSpy.platform;
+package net.gotlicked.logspy.platform;
 
-import net.gotlicked.LogSpy.platform.services.IPlatformHelper;
+import net.gotlicked.logspy.platform.services.IPlatformHelper;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.loading.FMLLoader;
 

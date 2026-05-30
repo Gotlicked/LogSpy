@@ -1,4 +1,4 @@
-package net.gotlicked.LogSpy;
+package net.gotlicked.logspy;
 
 import org.apache.logging.log4j.core.LogEvent;
 
@@ -21,10 +21,10 @@ public final class DedupFilter {
      * Group 1=UUID  Group 2=IPv4  Group 3=MC-namespace-ID  Group 4=plain-number
      */
     private static final Pattern NORMALIZE = Pattern.compile(
-        "([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})" // UUID
-        + "|(\\b\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\b)"                             // IPv4
-        + "|([a-z][a-z0-9_]*:[a-z0-9][a-z0-9_./-]*)"                                        // MC namespaced ID
-        + "|(\\d+)"                                                                           // plain number
+        "([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})"
+        + "|(\\b\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\b)"
+        + "|([a-z][a-z0-9_]*:[a-z0-9][a-z0-9_./-]*)"
+        + "|(\\d+)"
     );
 
     /** Reusable factory — avoids any lambda-capture overhead on every computeIfAbsent call. */
@@ -32,8 +32,8 @@ public final class DedupFilter {
 
     /**
      * Permanent cache: raw message text → normalised text.
-     * Never reset — normalisation is deterministic and messages recur across the session.
-     * Means any message seen once never pays the regex cost again.
+     * Never reset — normalisation is deterministic. Any message seen once never pays
+     * the regex cost again.
      */
     private final ConcurrentHashMap<String, String>        msgNormCache = new ConcurrentHashMap<>();
     /** Normalised key → occurrence count. Cleared on the 60 s reset cycle. */
@@ -44,8 +44,6 @@ public final class DedupFilter {
     /** Returns PASS, SUPPRESS_FIRST (emit one notice), or SUPPRESS (drop silently). */
     public Result check(LogEvent event) {
         String msg  = event.getMessage().getFormattedMessage();
-        // computeIfAbsent only runs normalise() the very first time this exact text appears.
-        // All subsequent calls — including exact-duplicate spam at 1000/s — pay only a hash lookup.
         String norm = msgNormCache.computeIfAbsent(msg, DedupFilter::normalise);
         String key  = event.getLoggerName() + '|' + event.getLevel() + '|' + norm;
 
@@ -61,11 +59,7 @@ public final class DedupFilter {
         announced.clear();
     }
 
-    /**
-     * Replaces all variable parts with stable placeholders using a single regex pass.
-     * Four separate replaceAll() calls each compiled the pattern from scratch — this
-     * compiles once at class load and traverses the string once per invocation.
-     */
+    /** Replaces variable parts with stable placeholders in a single regex pass. */
     private static String normalise(String msg) {
         return NORMALIZE.matcher(msg).replaceAll(m -> {
             if (m.group(1) != null) return "<uuid>";

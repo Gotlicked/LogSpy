@@ -1,10 +1,10 @@
-package net.gotlicked.LogSpy;
+package net.gotlicked.logspy;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
 
 /** Fabric main entrypoint. Registers mod JAR locations for log attribution. */
-public final class ExampleMod implements ModInitializer {
+public final class LogSpyFabric implements ModInitializer {
 
     @Override
     public void onInitialize() {

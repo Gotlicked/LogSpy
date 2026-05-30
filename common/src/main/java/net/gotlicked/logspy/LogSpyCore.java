@@ -1,4 +1,4 @@
-package net.gotlicked.LogSpy;
+package net.gotlicked.logspy;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -41,13 +41,11 @@ public final class LogSpyCore {
         Configuration config = ctx.getConfiguration();
         LoggerConfig  root   = config.getRootLogger();
 
-        // Preserve the per-appender level restrictions declared in the original log4j config.
         Map<String, Level> refLevels = new HashMap<>();
         for (AppenderRef ref : root.getAppenderRefs()) {
             refLevels.put(ref.getRef(), ref.getLevel());
         }
 
-        // Detach each original appender and keep it as a delegate inside our multiplexer.
         List<LogSpyAppender.DelegateEntry> delegates = new ArrayList<>();
         for (Appender original : new ArrayList<>(root.getAppenders().values())) {
             delegates.add(new LogSpyAppender.DelegateEntry(original, refLevels.get(original.getName())));
@@ -63,7 +61,7 @@ public final class LogSpyCore {
         LogSpyAppender spy = new LogSpyAppender("LogSpy", delegates, dedup);
         spy.start();
         config.addAppender(spy);
-        root.addAppender(spy, null, null); // null = receive everything at the root logger's effective level
+        root.addAppender(spy, null, null);
         ctx.updateLoggers();
     }
 

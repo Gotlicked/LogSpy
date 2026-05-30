@@ -1,4 +1,4 @@
-package net.gotlicked.LogSpy;
+package net.gotlicked.logspy;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -1,6 +1,6 @@
-package net.gotlicked.LogSpy;
+package net.gotlicked.logspy;
 
-import net.gotlicked.LogSpy.platform.Services;
+import net.gotlicked.logspy.platform.Services;
 
 /** Shared init logic called by both platform entrypoints after the log pipeline is ready. */
 public final class CommonClass {

@@ -1,6 +1,6 @@
-package net.gotlicked.LogSpy.mixin;
+package net.gotlicked.logspy.mixin;
 
-import net.gotlicked.LogSpy.Constants;
+import net.gotlicked.logspy.Constants;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import net.minecraft.server.MinecraftServer;

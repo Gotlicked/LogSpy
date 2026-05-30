@@ -1,4 +1,4 @@
-package net.gotlicked.LogSpy.platform.services;
+package net.gotlicked.logspy.platform.services;
 
 public interface IPlatformHelper {
 

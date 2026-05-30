@@ -8,6 +8,7 @@
         "${mod_author}"
     ],
     "contact": {
+        "homepage": "${mod_display}",
         "issues": "${mod_issue_tracker}"
     },
     "credits": "${mod_credits}",
@@ -19,7 +20,7 @@
             "${mod_group_id}.FabricPreLaunch"
         ],
         "main": [
-            "${mod_group_id}.ExampleMod"
+            "${mod_group_id}.LogSpyFabric"
         ]
     },
     "mixins": [

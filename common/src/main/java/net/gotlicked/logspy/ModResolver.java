@@ -1,4 +1,4 @@
-package net.gotlicked.LogSpy;
+package net.gotlicked.logspy;
 
 import org.jetbrains.annotations.Nullable;
 
@@ -47,8 +47,8 @@ public final class ModResolver {
             var pd = cls.getProtectionDomain();
             var cs = (pd != null) ? pd.getCodeSource() : null;
             if (cs != null && cs.getLocation() != null) {
-                String key    = normalizeUrl(cs.getLocation().toString());
-                String modId  = urlToModId.get(key);
+                String key   = normalizeUrl(cs.getLocation().toString());
+                String modId = urlToModId.get(key);
                 if (modId != null) {
                     classCache.put(className, modId);
                     return modId;

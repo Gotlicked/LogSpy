@@ -1,4 +1,4 @@
-package net.gotlicked.LogSpy;
+package net.gotlicked.logspy;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Marker;
@@ -28,6 +28,12 @@ public final class LogSpyAppender extends AbstractAppender {
 
     private final List<DelegateEntry> delegates;
     private final DedupFilter         dedup;
+
+    /**
+     * True when the last event actually forwarded to delegates was a suppression notice.
+     * Used to prevent consecutive "Silenced multiple…" lines stacking with no real message
+     * in between. Volatile — correct across threads without full synchronisation.
+     */
     private volatile boolean lastWasSuppression = false;
 
     public LogSpyAppender(String name, List<DelegateEntry> delegates, DedupFilter dedup) {
@@ -41,12 +47,12 @@ public final class LogSpyAppender extends AbstractAppender {
         DedupFilter.Result result = dedup.check(event);
         if (result == DedupFilter.Result.SUPPRESS) return;
 
-        // Don't let "Silenced multiple Xs of this type" get printed multiple times in a row.
+        // Gate: if the last thing printed was already a suppression notice, swallow any
+        // further notices silently until at least one real PASS message has gone through.
         if (result == DedupFilter.Result.SUPPRESS_FIRST) {
             if (lastWasSuppression) return;
             lastWasSuppression = true;
         } else {
-            // A real message is going through — reset the gate.
             lastWasSuppression = false;
         }
 
@@ -57,8 +63,6 @@ public final class LogSpyAppender extends AbstractAppender {
                 ? "Silenced multiple " + event.getLevel().toString().toLowerCase() + "s of this type"
                 : event.getMessage().getFormattedMessage();
 
-        // TaggedEvent wraps the original rather than copying all its fields into a new Log4jLogEvent.
-        // Allocates 3 fields instead of a full builder + 10+ field LogEvent object.
         Throwable thrown = isSuppression ? null : event.getThrown();
         LogEvent  out    = new TaggedEvent(event, new SimpleMessage("[" + modId + "] " + body), thrown);
 
@@ -71,10 +75,8 @@ public final class LogSpyAppender extends AbstractAppender {
 
     /**
      * Resolves the logger name to its owning mod ID.
-     * event.getSource() is intentionally skipped — it always returns null unless
-     * the log4j config has includeLocation="true", which it doesn't.
-     * resolveByClass() already falls back to resolveByPackage() internally,
-     * so a second explicit call is redundant.
+     * event.getSource() is skipped — always null without includeLocation="true".
+     * resolveByClass() already falls back to resolveByPackage() internally.
      */
     private static String resolveModId(LogEvent event) {
         String logger = event.getLoggerName();
@@ -88,8 +90,8 @@ public final class LogSpyAppender extends AbstractAppender {
     // ── TaggedEvent ───────────────────────────────────────────────────────────
 
     /**
-     * Lightweight LogEvent wrapper that overrides only the message (and optionally the
-     * throwable). Everything else delegates to the original event with zero field copying.
+     * Lightweight LogEvent wrapper — overrides only message and thrown.
+     * Everything else delegates to the original with zero field copying.
      */
     private static final class TaggedEvent implements LogEvent {
 
@@ -108,33 +110,31 @@ public final class LogSpyAppender extends AbstractAppender {
         @Override public Message   getMessage()     { return msg; }
         @Override public Throwable getThrown()      { return thrown; }
 
-        /** Only return  the proxy when our thrown is the same object as the original's. */
         @Override public ThrowableProxy getThrownProxy() {
             return (thrown != null && thrown == src.getThrown()) ? src.getThrownProxy() : null;
         }
 
-        /** Source location is never populated without includeLocation="true". */
-        @Override public StackTraceElement getSource()      { return null; }
+        @Override public StackTraceElement getSource()         { return null; }
         @Override public boolean           isIncludeLocation() { return false; }
         @Override public void              setIncludeLocation(boolean b) {}
 
-        @Override public Level             getLevel()       { return src.getLevel(); }
-        @Override public String            getLoggerName()  { return src.getLoggerName(); }
-        @Override public Marker            getMarker()      { return src.getMarker(); }
-        @Override public String            getLoggerFqcn()  { return src.getLoggerFqcn(); }
-        @Override public ReadOnlyStringMap getContextData() { return src.getContextData(); }
+        @Override public Level             getLevel()          { return src.getLevel(); }
+        @Override public String            getLoggerName()     { return src.getLoggerName(); }
+        @Override public Marker            getMarker()         { return src.getMarker(); }
+        @Override public String            getLoggerFqcn()     { return src.getLoggerFqcn(); }
+        @Override public ReadOnlyStringMap getContextData()    { return src.getContextData(); }
         @Override public ThreadContext.ContextStack getContextStack() { return src.getContextStack(); }
-        @Override public String            getThreadName()  { return src.getThreadName(); }
-        @Override public long              getThreadId()    { return src.getThreadId(); }
+        @Override public String            getThreadName()     { return src.getThreadName(); }
+        @Override public long              getThreadId()       { return src.getThreadId(); }
         @Override public int               getThreadPriority() { return src.getThreadPriority(); }
-        @Override public long              getTimeMillis()  { return src.getTimeMillis(); }
-        @Override public Instant           getInstant()     { return src.getInstant(); }
-        @Override public long              getNanoTime()    { return src.getNanoTime(); }
-        @Override public boolean           isEndOfBatch()   { return src.isEndOfBatch(); }
+        @Override public long              getTimeMillis()     { return src.getTimeMillis(); }
+        @Override public Instant           getInstant()        { return src.getInstant(); }
+        @Override public long              getNanoTime()       { return src.getNanoTime(); }
+        @Override public boolean           isEndOfBatch()      { return src.isEndOfBatch(); }
         @Override public void              setEndOfBatch(boolean b) {}
-        @Override public LogEvent          toImmutable()    { return this; }
+        @Override public LogEvent          toImmutable()       { return this; }
 
         @SuppressWarnings("deprecation")
-        @Override public Map<String, String> getContextMap() { return src.getContextMap(); }
+        @Override public Map<String, String> getContextMap()   { return src.getContextMap(); }
     }
 }

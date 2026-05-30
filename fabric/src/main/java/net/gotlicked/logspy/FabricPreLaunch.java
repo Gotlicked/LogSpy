@@ -1,4 +1,4 @@
-package net.gotlicked.LogSpy;
+package net.gotlicked.logspy;
 
 import net.fabricmc.loader.api.entrypoint.PreLaunchEntrypoint;
 
