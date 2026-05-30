@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "net.gotlicked.LogSpy.mixin",
+  "mixins": [
+    "MixinMinecraftServerSafe"
+  ],
+  "client": [
+    "MixinMinecraft",
+    "MixinMinecraftSafe"
+  ],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
