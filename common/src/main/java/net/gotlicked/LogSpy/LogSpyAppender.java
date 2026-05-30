@@ -28,6 +28,7 @@ public final class LogSpyAppender extends AbstractAppender {
 
     private final List<DelegateEntry> delegates;
     private final DedupFilter         dedup;
+    private volatile boolean lastWasSuppression = false;
 
     public LogSpyAppender(String name, List<DelegateEntry> delegates, DedupFilter dedup) {
         super(name, null, null, true, Property.EMPTY_ARRAY);
@@ -39,6 +40,15 @@ public final class LogSpyAppender extends AbstractAppender {
     public void append(LogEvent event) {
         DedupFilter.Result result = dedup.check(event);
         if (result == DedupFilter.Result.SUPPRESS) return;
+
+        // Don't let "Silenced multiple Xs of this type" get printed multiple times in a row.
+        if (result == DedupFilter.Result.SUPPRESS_FIRST) {
+            if (lastWasSuppression) return;
+            lastWasSuppression = true;
+        } else {
+            // A real message is going through — reset the gate.
+            lastWasSuppression = false;
+        }
 
         String  modId         = resolveModId(event);
         boolean isSuppression = (result == DedupFilter.Result.SUPPRESS_FIRST);
@@ -98,7 +108,7 @@ public final class LogSpyAppender extends AbstractAppender {
         @Override public Message   getMessage()     { return msg; }
         @Override public Throwable getThrown()      { return thrown; }
 
-        /** Only return the proxy when our thrown is the same object as the original's. */
+        /** Only return  the proxy when our thrown is the same object as the original's. */
         @Override public ThrowableProxy getThrownProxy() {
             return (thrown != null && thrown == src.getThrown()) ? src.getThrownProxy() : null;
         }

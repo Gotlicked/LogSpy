@@ -71,7 +71,8 @@ tasks.named<ProcessResources>("processResources") {
         "neoforge_loader_version_range" to findProperty("neoforge_loader_version_range"),
         "mod_credits"                   to findProperty("mod_credits"),
         "java_version"                  to findProperty("java_version"),
-    )
+        "mod_issue_tracker"             to findProperty("mod_issue_tracker"),
+        )
     inputs.properties(replaceProperties)
     filesMatching(listOf(
         "neoforge.mods.toml",

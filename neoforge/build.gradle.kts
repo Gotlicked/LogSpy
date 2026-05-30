@@ -5,7 +5,7 @@ plugins {
 }
 
 base {
-    archivesName = "${property("mod_id")}-${project.name}-${property("minecraft_version")}${property("mod_version")}"
+    archivesName = "${property("mod_id")}-${project.name}-${property("minecraft_version")}-${property("mod_version")}"
 }
 
 java {

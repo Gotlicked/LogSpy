@@ -7,6 +7,9 @@
     "authors": [
         "${mod_author}"
     ],
+    "contact": {
+        "issues": "${mod_issue_tracker}"
+    },
     "credits": "${mod_credits}",
     "license": "${mod_license}",
     "icon": "${mod_logo_file}",
