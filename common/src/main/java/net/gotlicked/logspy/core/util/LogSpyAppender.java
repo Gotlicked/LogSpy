@@ -1,5 +1,6 @@
 package net.gotlicked.logspy.core.util;
 
+import net.gotlicked.logspy.LogSpyConstants;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.ThreadContext;
@@ -57,11 +58,12 @@ public final class LogSpyAppender extends AbstractAppender {
             lastWasSuppression = false;
         }
 
-        String  modId         = resolveModId(event);
         boolean isSuppression = (result == LogSpyDedupFilter.Result.SUPPRESS_FIRST);
+        String  modId         = isSuppression ? LogSpyConstants.MOD_ID : resolveModId(event);
 
+        String originModId = isSuppression ? resolveModId(event) : null;
         String body = isSuppression
-                ? "Silenced" + event.getLevel().toString()
+                ? "Log spam detected: Intercepted and silenced multiple similar [" + event.getLevel().toString() + "] messages from source: [" + originModId + "]."
                 : event.getMessage().getFormattedMessage();
 
         Throwable thrown = isSuppression ? null : event.getThrown();
