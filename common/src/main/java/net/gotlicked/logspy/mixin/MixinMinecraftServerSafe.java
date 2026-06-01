@@ -11,19 +11,13 @@ import org.spongepowered.asm.mixin.injection.At;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 
-/**
- * Wraps the tickServer() call inside processPacketsAndTick() to catch per-tick RuntimeExceptions.
- * Re-throws after MAX_CONSECUTIVE_FAILURES consecutive failures to allow a proper crash report.
- * Target verified against MC 26.1.2: runServer() → processPacketsAndTick() → tickServer().
- */
 @Mixin(MinecraftServer.class)
 public abstract class MixinMinecraftServerSafe {
 
-    @Unique
-    private static final int MAX_CONSECUTIVE_FAILURES = 3;
-    @Unique
-    private final AtomicInteger logspy$consecutiveFailures = new AtomicInteger(0);
+    @Unique private static final int MAX_CONSECUTIVE_FAILURES = 3;
+    @Unique private final AtomicInteger logspy$consecutiveFailures = new AtomicInteger(0);
 
+    // Wraps tickServer to catch RuntimeExceptions; re-throws after 3 consecutive failures.
     @WrapOperation(
             method = "processPacketsAndTick(Z)V",
             at = @At(value = "INVOKE",

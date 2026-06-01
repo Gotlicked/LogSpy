@@ -20,33 +20,19 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.stream.Stream;
 
-/**
- * Maps logger names to mod IDs using a layered set of strategies:
- *   1. Exact alias match (mod ID, display name, sanitised variants)
- *   2. Case-insensitive alias match
- *   3. Class lookup via ProtectionDomain → JAR URL
- *   4. Java package prefix match (longest wins)
- *   5. Word-boundary substring match against aliases
- *   6. Fallback to a sensible label derived from the logger name itself
- */
 public final class LogSpyModResolver {
     private LogSpyModResolver() {}
 
-    // Generic top-level domain segments — never used as a mod label on their own.
     private static final Set<String> GENERIC_TLDS = Set.of(
             "net", "com", "org", "io", "dev", "me", "co", "eu", "xyz");
 
-    private static final ConcurrentHashMap<String, String> urlToModId       = new ConcurrentHashMap<>();
-    private static final ConcurrentHashMap<String, String> packageToModId   = new ConcurrentHashMap<>();
-    private static final ConcurrentHashMap<String, String> aliasCaseExact   = new ConcurrentHashMap<>();
-    private static final ConcurrentHashMap<String, String> aliasCaseInsens  = new ConcurrentHashMap<>();
-    private static final ConcurrentHashMap<String, String> resolveCache     = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, String> urlToModId      = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, String> packageToModId  = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, String> aliasCaseExact  = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, String> aliasCaseInsens = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, String> resolveCache    = new ConcurrentHashMap<>();
 
-    /**
-     * Registers everything we know about a mod in one call.
-     * Generates name aliases, registers the JAR URL, and scans the JAR (or directory)
-     * for actual Java package prefixes used by its classes.
-     */
+    // Registers a mod's ID, display name, and JAR path; scans the JAR for package prefixes.
     public static void registerMod(String modId, @Nullable String displayName, @Nullable Path jarPath) {
         if (modId == null || modId.isEmpty()) return;
 
@@ -69,23 +55,19 @@ public final class LogSpyModResolver {
         }
     }
 
-    /** Clears the resolve-result cache. Call after a batch of new registrations. */
+    // Clears the resolve cache; call after all mods have been registered.
     public static void invalidateCache() {
         resolveCache.clear();
     }
 
+    // Adds a name to both the case-sensitive and lowercase alias maps.
     private static void addAlias(String name, String modId) {
         if (name == null || name.isEmpty()) return;
         aliasCaseExact.put(name, modId);
         aliasCaseInsens.put(name.toLowerCase(Locale.ROOT), modId);
     }
 
-    // ── Resolution ───────────────────────────────────────────────────────────
-
-    /**
-     * Resolves a logger name to a label. Never returns null — falls back to
-     * a sensible label derived from the logger name itself if nothing else matches.
-     */
+    // Resolves a logger name to a mod ID label; never returns null, falls back to a derived label.
     public static String resolve(String loggerName) {
         if (loggerName == null || loggerName.isEmpty()) return "unknown";
         String cached = resolveCache.get(loggerName);
@@ -97,11 +79,11 @@ public final class LogSpyModResolver {
         return result;
     }
 
-    /** Longest registered package prefix matching the given class/logger name. */
+    // Returns the mod ID whose registered package prefix is the longest match for the given name.
     @Nullable
     public static String resolveByPackage(String name) {
-        String best = null;
-        int    bestLen = 0;
+        String best   = null;
+        int bestLen   = 0;
         for (Map.Entry<String, String> entry : packageToModId.entrySet()) {
             String pkg = entry.getKey();
             if (name.startsWith(pkg) && pkg.length() > bestLen) {
@@ -112,7 +94,7 @@ public final class LogSpyModResolver {
         return best;
     }
 
-    /** Runs strategies 1-5 in order. Returns null only if every strategy fails. */
+    // Tries each resolution strategy in order; returns null only if all five fail.
     @Nullable
     private static String doResolve(String name) {
         String r = aliasCaseExact.get(name);
@@ -132,13 +114,14 @@ public final class LogSpyModResolver {
         r = resolveByPackage(base);
         if (r != null) return r;
 
-        r = resolveBySubstring(lower);
-        return r;
+        return resolveBySubstring(lower);
     }
 
-    /** Loads the class (if it exists) and looks up its JAR URL. */
+    // Loads the class to read its ProtectionDomain URL, then maps that URL to a mod ID.
     @Nullable
     private static String resolveViaClassLoader(String className) {
+        if (className.indexOf('.') < 0) return null;
+
         try {
             ClassLoader cl = Thread.currentThread().getContextClassLoader();
             if (cl == null) cl = LogSpyModResolver.class.getClassLoader();
@@ -152,12 +135,7 @@ public final class LogSpyModResolver {
         return null;
     }
 
-    /**
-     * Looks for any registered alias that appears in the logger name at a word
-     * boundary (start of string or after a non-letter-digit character). The
-     * word boundary requirement avoids false positives like matching "ae" inside
-     * "Resource", while still catching real cases like "Balm" in "BalmReloadCmd".
-     */
+    // Searches all aliases for one that appears at a word boundary within the logger name.
     @Nullable
     private static String resolveBySubstring(String loggerLower) {
         for (Map.Entry<String, String> entry : aliasCaseInsens.entrySet()) {
@@ -165,8 +143,7 @@ public final class LogSpyModResolver {
             if (alias.length() < 3) continue;
             int idx = loggerLower.indexOf(alias);
             while (idx >= 0) {
-                boolean atBoundary = (idx == 0) ||
-                        !Character.isLetterOrDigit(loggerLower.charAt(idx - 1));
+                boolean atBoundary = (idx == 0) || !Character.isLetterOrDigit(loggerLower.charAt(idx - 1));
                 if (atBoundary) return entry.getValue();
                 idx = loggerLower.indexOf(alias, idx + 1);
             }
@@ -174,43 +151,33 @@ public final class LogSpyModResolver {
         return null;
     }
 
-    /**
-     * Builds a sensible label from a logger name when no mod matched.
-     *   "net.minecraft.client.Minecraft"   → "minecraft"
-     *   "com.mojang.blaze3d.RenderSystem"  → "mojang"
-     *   "FML" / "Balm" / "Modonomicon"     → unchanged
-     *   "Tic-Tac-Toe"                      → "Tic-Tac-Toe"
-     */
+    // Derives a readable label from a logger name when no mod matched, e.g. "net.minecraft.X" → "minecraft".
     private static String deriveFallbackLabel(String loggerName) {
         int dot = loggerName.indexOf('.');
         if (dot < 0) return loggerName;
 
-        String[] parts = loggerName.split("\\.");
-        String first = parts[0].toLowerCase(Locale.ROOT);
-        if (parts.length >= 2 && GENERIC_TLDS.contains(first)) {
-            return parts[1];
+        String first = loggerName.substring(0, dot);
+        if (GENERIC_TLDS.contains(first.toLowerCase(Locale.ROOT))) {
+            int nextDot = loggerName.indexOf('.', dot + 1);
+            return nextDot < 0
+                    ? loggerName.substring(dot + 1)
+                    : loggerName.substring(dot + 1, nextDot);
         }
-        return parts[0];
+        return first;
     }
 
-    // ── JAR / directory scanning ─────────────────────────────────────────────
-
-    /** Returns root Java packages observed inside the mod's JAR or class directory. */
+    // Returns the root Java packages found in the given JAR or class directory.
     private static Set<String> findPackages(Path path) {
         if (path == null) return Collections.emptySet();
         try {
-            Set<String> raw;
-            if (Files.isDirectory(path)) {
-                raw = scanDirectory(path);
-            } else {
-                raw = scanJar(path);
-            }
+            Set<String> raw = Files.isDirectory(path) ? scanDirectory(path) : scanJar(path);
             return condenseToRootPackages(raw);
-        } catch (Exception _) {
+        } catch (Exception ignored) {
             return Collections.emptySet();
         }
     }
 
+    // Enumerates all .class entries in a JAR file and collects their package paths.
     private static Set<String> scanJar(Path jarPath) throws IOException {
         Set<String> packages = new HashSet<>();
         try (JarFile jar = new JarFile(jarPath.toFile())) {
@@ -225,26 +192,21 @@ public final class LogSpyModResolver {
         return packages;
     }
 
+    // Walks a class directory and collects the package path of every .class file found.
     private static Set<String> scanDirectory(Path dir) throws IOException {
         Set<String> packages = new HashSet<>();
         try (Stream<Path> walk = Files.walk(dir)) {
             walk.filter(p -> p.toString().endsWith(".class")).forEach(p -> {
-                Path rel = dir.relativize(p);
-                Path parent = rel.getParent();
+                Path parent = dir.relativize(p).getParent();
                 if (parent != null) {
-                    packages.add(parent.toString()
-                            .replace('\\', '.')
-                            .replace('/',  '.'));
+                    packages.add(parent.toString().replace('\\', '.').replace('/', '.'));
                 }
             });
         }
         return packages;
     }
 
-    /**
-     * Reduces a flat set of every observed package to just the useful "root"
-     * packages — i.e. ones long enough to uniquely identify a mod.
-     */
+    // Reduces a full set of package paths to just the distinct root prefixes that identify a mod.
     private static Set<String> condenseToRootPackages(Set<String> all) {
         if (all.isEmpty()) return Collections.emptySet();
 
@@ -257,14 +219,12 @@ public final class LogSpyModResolver {
 
         Set<String> roots = new HashSet<>();
         for (Map.Entry<String, List<String>> entry : byFirst.entrySet()) {
-            String first = entry.getKey();
+            String first  = entry.getKey();
             String common = longestCommonSegmentPrefix(entry.getValue());
 
             if (GENERIC_TLDS.contains(first.toLowerCase(Locale.ROOT))) {
-                // For generic TLDs we MUST go at least two segments deep to be useful.
                 if (common != null && common.indexOf('.') > 0) roots.add(common);
             } else {
-                // First segment is already specific enough.
                 roots.add(first);
                 if (common != null && common.length() > first.length()) roots.add(common);
             }
@@ -272,12 +232,12 @@ public final class LogSpyModResolver {
         return roots;
     }
 
-    /** Longest segment-aligned package prefix shared by every entry in the list. */
+    // Returns the longest dot-segment prefix shared by all packages in the list.
     @Nullable
     private static String longestCommonSegmentPrefix(List<String> packages) {
         if (packages.isEmpty()) return null;
         String[] first = packages.getFirst().split("\\.");
-        int commonLen = first.length;
+        int commonLen  = first.length;
         for (String pkg : packages) {
             String[] segments = pkg.split("\\.");
             int max = Math.min(commonLen, segments.length);
@@ -289,6 +249,7 @@ public final class LogSpyModResolver {
         return String.join(".", Arrays.copyOfRange(first, 0, commonLen));
     }
 
+    // Strips jar: prefixes, !/ suffixes, and trailing slashes from a code-source URL.
     private static String normalizeUrl(String url) {
         if (url == null) return "";
         if (url.startsWith("jar:")) url = url.substring(4);

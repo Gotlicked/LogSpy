@@ -21,7 +21,6 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
 
-/** Installs the LogSpy pipeline. Call {@link #init()} once from each platform entrypoint. */
 public final class LogSpyCore {
     private LogSpyCore() {}
 
@@ -30,7 +29,7 @@ public final class LogSpyCore {
 
     private static final int RESET_INTERVAL_SECONDS = 60;
 
-    /** Installs the log pipeline and exception handler. Idempotent. */
+    // Entry point — installs the pipeline and exception handler; safe to call more than once.
     public static synchronized void init() {
         if (initialised) return;
         initialised = true;
@@ -39,7 +38,7 @@ public final class LogSpyCore {
         startResetScheduler();
     }
 
-    /** Replaces all root-logger appenders with a single LogSpyAppender multiplexer. */
+    // Removes all existing root appenders and replaces them with a single LogSpyAppender.
     private static void wirePipeline() {
         LoggerContext ctx    = (LoggerContext) LogManager.getContext(false);
         Configuration config = ctx.getConfiguration();
@@ -69,7 +68,7 @@ public final class LogSpyCore {
         ctx.updateLoggers();
     }
 
-    /** Installs a global uncaught-exception handler that logs and forwards to the previous handler. */
+    // Installs a global uncaught exception handler that logs non-Error throwables before delegating.
     private static void installUncaughtExceptionHandler() {
         Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
@@ -81,18 +80,15 @@ public final class LogSpyCore {
         });
     }
 
-    /** Resets dedup counts every 60 s so messages don't stay suppressed permanently. */
+    // Schedules a daemon thread that resets dedup counters every 60 seconds.
     private static void startResetScheduler() {
-            ScheduledExecutorService scheduler =
-                    newSingleThreadScheduledExecutor(r -> {
-                Thread t = new Thread(r, "logspyResetSupressed");
-                t.setDaemon(true);
-                return t;
-            });
-            scheduler.scheduleAtFixedRate(
-                    () -> {
-                        if (dedup != null) dedup.reset();
-                    },
-                    RESET_INTERVAL_SECONDS, RESET_INTERVAL_SECONDS, TimeUnit.SECONDS);
+        ScheduledExecutorService scheduler = newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "logspyResetSupressed");
+            t.setDaemon(true);
+            return t;
+        });
+        scheduler.scheduleAtFixedRate(
+                () -> { if (dedup != null) dedup.reset(); },
+                RESET_INTERVAL_SECONDS, RESET_INTERVAL_SECONDS, TimeUnit.SECONDS);
     }
 }

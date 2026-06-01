@@ -8,6 +8,7 @@ import java.nio.file.Path;
 
 public final class LogSpyFabric implements ModInitializer {
 
+    // Registers every loaded mod with the resolver in parallel, then invalidates the cache.
     @Override
     public void onInitialize() {
         FabricLoader.getInstance().getAllMods().parallelStream().forEach(container -> {

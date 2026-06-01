@@ -2,16 +2,16 @@ package net.gotlicked.logspy.services;
 
 public interface IPlatformHelper {
 
-    /** Returns the name of the current mod loader platform. */
+    // Returns the name of the current mod loader platform.
     String getPlatformName();
 
-    /** Returns true if the given mod ID is currently loaded. */
+    // Returns true if the given mod ID is currently loaded.
     boolean isModLoaded(String modId);
 
-    /** Returns true when running inside a development environment. */
+    // Returns true when running inside a development environment.
     boolean isDevelopmentEnvironment();
 
-    /** Returns "development" or "production". */
+    // Returns "development" or "production" based on the current environment.
     default String getEnvironmentName() {
         return isDevelopmentEnvironment() ? "development" : "production";
     }

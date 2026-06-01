@@ -11,6 +11,7 @@ import java.nio.file.Path;
 @Mod(LogSpyConstants.MOD_ID)
 public final class LogSpyNeoforge {
 
+    // Installs the pipeline and registers every loaded mod with the resolver.
     public LogSpyNeoforge(IEventBus eventBus) {
         LogSpyCore.init();
         ModList.get().getMods().parallelStream().forEach(info -> {
@@ -20,10 +21,10 @@ public final class LogSpyNeoforge {
             LogSpyModResolver.registerMod(modId, displayName, jarPath);
         });
         LogSpyModResolver.invalidateCache();
-
         LogSpyCommon.init();
     }
 
+    // Returns the JAR file path for a mod, or null if it cannot be read.
     private static Path safeFilePath(net.neoforged.neoforgespi.language.IModInfo info) {
         try {
             return info.getOwningFile().getFile().getFilePath();

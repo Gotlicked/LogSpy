@@ -7,10 +7,10 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Confirms the LogSpy pipeline is live once the Minecraft client finishes initialising. */
 @Mixin(Minecraft.class)
 public class MixinMinecraft {
 
+    // Logs a confirmation that the LogSpy pipeline is active once the client finishes initialising.
     @Inject(at = @At("TAIL"), method = "<init>")
     private void logspy$onClientReady(CallbackInfo ci) {
         LogSpyConstants.LOG.info("Starting LogSpy for: MC {}",

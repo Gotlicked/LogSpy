@@ -19,38 +19,27 @@ import java.io.Serial;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Single root-logger multiplexer that handles dedup and mod-ID tagging once per event,
- * then routes to each original appender respecting its configured level.
- */
 public final class LogSpyAppender extends AbstractAppender {
 
-    /** Pairs an original appender with its configured minimum log level (null = inherit root). */
     public record DelegateEntry(Appender appender, @Nullable Level minLevel) {}
 
-    private final List<DelegateEntry> delegates;
+    private final DelegateEntry[] delegates;
     private final LogSpyDedupFilter dedup;
-
-    /**
-     * True when the last event actually forwarded to delegates was a suppression notice.
-     * Used to prevent consecutive "Silenced multiple…" lines stacking with no real message
-     * in between. Volatile — correct across threads without full synchronisation.
-     */
     private volatile boolean lastWasSuppression = false;
 
+    // Converts the delegate list to an array so the appended loop uses a plain indexed iteration.
     public LogSpyAppender(String name, List<DelegateEntry> delegates, LogSpyDedupFilter dedup) {
         super(name, null, null, true, Property.EMPTY_ARRAY);
-        this.delegates = delegates;
+        this.delegates = delegates.toArray(new DelegateEntry[0]);
         this.dedup     = dedup;
     }
 
+    // Runs dedup, gates consecutive suppression notices, tags the event with a mod ID, and forwards it.
     @Override
     public void append(LogEvent event) {
         LogSpyDedupFilter.Result result = dedup.check(event);
         if (result == LogSpyDedupFilter.Result.SUPPRESS) return;
 
-        // Gate: if the last thing printed was already a suppression notice, swallow any
-        // further notices silently until at least one real PASS message has gone through.
         if (result == LogSpyDedupFilter.Result.SUPPRESS_FIRST) {
             if (lastWasSuppression) return;
             lastWasSuppression = true;
@@ -59,152 +48,72 @@ public final class LogSpyAppender extends AbstractAppender {
         }
 
         boolean isSuppression = (result == LogSpyDedupFilter.Result.SUPPRESS_FIRST);
-        String  modId         = isSuppression ? LogSpyConstants.MOD_ID : resolveModId(event);
+        String  originModId   = resolveModId(event);
+        String  modId         = isSuppression ? LogSpyConstants.MOD_ID : originModId;
 
-        String originModId = isSuppression ? resolveModId(event) : null;
         String body = isSuppression
-                ? "Log spam detected: Intercepted and silenced multiple similar [" + event.getLevel().toString() + "] messages from source: [" + originModId + "]."
+                ? "Log spam detected: Intercepted and silenced multiple similar [" + event.getLevel().toString() + "] messages from: [" + originModId + "]."
                 : event.getMessage().getFormattedMessage();
 
         Throwable thrown = isSuppression ? null : event.getThrown();
         LogEvent  out    = new TaggedEvent(event, new SimpleMessage("[" + modId + "] " + body), thrown);
 
+        Level outLevel = out.getLevel();
         for (DelegateEntry entry : delegates) {
-            if (entry.minLevel() == null || out.getLevel().isMoreSpecificThan(entry.minLevel())) {
+            Level min = entry.minLevel();
+            if (min == null || outLevel.isMoreSpecificThan(min)) {
                 entry.appender().append(out);
             }
         }
     }
 
-    /**
-     * Resolves the logger name to a mod ID. Delegates to ModResolver which now
-     * tries multiple strategies (aliases, class lookup, package prefix, substring)
-     * and falls back to a label derived from the logger name itself rather than
-     * ever returning "unknown".
-     */
+    // Resolves the event's logger name to a mod ID string using LogSpyModResolver.
     private static String resolveModId(LogEvent event) {
         return LogSpyModResolver.resolve(event.getLoggerName());
     }
 
-    // ── TaggedEvent ───────────────────────────────────────────────────────────
+    // Wraps a LogEvent, overriding only the message and throwable; all other fields delegate to the source.
+    private record TaggedEvent(LogEvent src, Message msg, Throwable thrown) implements LogEvent {
 
-    /**
-         * Lightweight LogEvent wrapper — overrides only message and thrown.
-         * Everything else delegates to the original with zero field copying.
-         */
-        private record TaggedEvent(LogEvent src, Message msg, Throwable thrown) implements LogEvent {
+        @Serial
+        private static final long serialVersionUID = 1L;
 
-            @Serial
-            private static final long serialVersionUID = 1L;
+        // Returns the overridden message.
+        @Override public Message getMessage() { return msg; }
 
-        @Override
-        public Message getMessage() {
-            return msg;
+        // Returns the overridden throwable (null for suppression notices).
+        @Override public Throwable getThrown() { return thrown; }
+
+        // Returns the throwable proxy only when our thrown matches the source throwable.
+        @SuppressWarnings("deprecation")
+        @Override public ThrowableProxy getThrownProxy() {
+            return (thrown != null && thrown == src.getThrown()) ? src.getThrownProxy() : null;
         }
 
-        @Override
-        public Throwable getThrown() {
-            return thrown;
-        }
+        // Always returns null; source location is not captured without includeLocation="true".
+        @Override public StackTraceElement getSource()          { return null; }
 
-            @SuppressWarnings("deprecation")
-            @Override
-            public ThrowableProxy getThrownProxy() {
-                return (thrown != null && thrown == src.getThrown()) ? src.getThrownProxy() : null;
-            }
+        // Always returns false; location capture is disabled.
+        @Override public boolean isIncludeLocation()            { return false; }
+        @Override public void    setIncludeLocation(boolean b)  {}
 
-            @Override
-            public StackTraceElement getSource() {
-                return null;
-            }
+        @Override public Level   getLevel()         { return src.getLevel(); }
+        @Override public String  getLoggerName()    { return src.getLoggerName(); }
+        @Override public Marker  getMarker()        { return src.getMarker(); }
+        @Override public String  getLoggerFqcn()    { return src.getLoggerFqcn(); }
+        @Override public ReadOnlyStringMap getContextData()              { return src.getContextData(); }
+        @Override public ThreadContext.ContextStack getContextStack()    { return src.getContextStack(); }
+        @Override public String  getThreadName()    { return src.getThreadName(); }
+        @Override public long    getThreadId()      { return src.getThreadId(); }
+        @Override public int     getThreadPriority(){ return src.getThreadPriority(); }
+        @Override public long    getTimeMillis()    { return src.getTimeMillis(); }
+        @Override public Instant getInstant()       { return src.getInstant(); }
+        @Override public long    getNanoTime()      { return src.getNanoTime(); }
+        @Override public boolean isEndOfBatch()     { return src.isEndOfBatch(); }
+        @Override public void    setEndOfBatch(boolean b) {}
+        @Override public LogEvent toImmutable()     { return this; }
 
-        @Override
-        public boolean isIncludeLocation() {
-            return false;
-        }
-
-        @Override
-        public void setIncludeLocation(boolean b) {
-        }
-
-            @Override
-            public Level getLevel() {
-                return src.getLevel();
-            }
-
-        @Override
-        public String getLoggerName() {
-            return src.getLoggerName();
-        }
-
-        @Override
-        public Marker getMarker() {
-            return src.getMarker();
-        }
-
-        @Override
-        public String getLoggerFqcn() {
-            return src.getLoggerFqcn();
-        }
-
-        @Override
-        public ReadOnlyStringMap getContextData() {
-            return src.getContextData();
-        }
-
-        @Override
-        public ThreadContext.ContextStack getContextStack() {
-            return src.getContextStack();
-        }
-
-        @Override
-        public String getThreadName() {
-            return src.getThreadName();
-        }
-
-        @Override
-        public long getThreadId() {
-            return src.getThreadId();
-        }
-
-        @Override
-        public int getThreadPriority() {
-            return src.getThreadPriority();
-        }
-
-        @Override
-        public long getTimeMillis() {
-            return src.getTimeMillis();
-        }
-
-        @Override
-        public Instant getInstant() {
-            return src.getInstant();
-        }
-
-        @Override
-        public long getNanoTime() {
-            return src.getNanoTime();
-        }
-
-        @Override
-        public boolean isEndOfBatch() {
-            return src.isEndOfBatch();
-        }
-
-        @Override
-        public void setEndOfBatch(boolean b) {
-        }
-
-        @Override
-        public LogEvent toImmutable() {
-            return this;
-        }
-
-            @SuppressWarnings("deprecation")
-            @Override
-            public Map<String, String> getContextMap() {
-                return src.getContextMap();
-            }
-        }
+        @SuppressWarnings("deprecation")
+        @Override public Map<String, String> getContextMap() { return src.getContextMap(); }
+    }
 }
