@@ -2,6 +2,7 @@ pluginManagement {
     repositories {
         gradlePluginPortal()
         pluginManagement {
+            @Suppress("UnstableApiUsage")
             repositories {
                 gradlePluginPortal()
                 exclusiveContent {

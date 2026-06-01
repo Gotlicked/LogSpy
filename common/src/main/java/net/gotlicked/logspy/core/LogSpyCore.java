@@ -1,5 +1,8 @@
-package net.gotlicked.logspy;
+package net.gotlicked.logspy.core;
 
+import net.gotlicked.logspy.LogSpyConstants;
+import net.gotlicked.logspy.core.util.LogSpyAppender;
+import net.gotlicked.logspy.core.util.LogSpyDedupFilter;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.Appender;
@@ -13,16 +16,17 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+
+import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
 
 /** Installs the LogSpy pipeline. Call {@link #init()} once from each platform entrypoint. */
 public final class LogSpyCore {
     private LogSpyCore() {}
 
     private static volatile boolean initialised = false;
-    private static          DedupFilter dedup;
+    private static LogSpyDedupFilter dedup;
 
     private static final int RESET_INTERVAL_SECONDS = 60;
 
@@ -57,7 +61,7 @@ public final class LogSpyCore {
             return;
         }
 
-        dedup = new DedupFilter();
+        dedup = new LogSpyDedupFilter();
         LogSpyAppender spy = new LogSpyAppender("LogSpy", delegates, dedup);
         spy.start();
         config.addAppender(spy);
@@ -70,7 +74,7 @@ public final class LogSpyCore {
         Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
             if (!(throwable instanceof Error)) {
-                Constants.LOG.error("[LogSpy] Uncaught {} on thread '{}'",
+                LogSpyConstants.LOG.error("[LogSpy] Uncaught {} on thread '{}'",
                         throwable.getClass().getSimpleName(), thread.getName(), throwable);
             }
             if (previous != null) previous.uncaughtException(thread, throwable);
@@ -79,13 +83,16 @@ public final class LogSpyCore {
 
     /** Resets dedup counts every 60 s so messages don't stay suppressed permanently. */
     private static void startResetScheduler() {
-        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "LogSpy-CountReset");
-            t.setDaemon(true);
-            return t;
-        });
-        scheduler.scheduleAtFixedRate(
-                () -> { if (dedup != null) dedup.reset(); },
-                RESET_INTERVAL_SECONDS, RESET_INTERVAL_SECONDS, TimeUnit.SECONDS);
+            ScheduledExecutorService scheduler =
+                    newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "LogSpy-CountReset");
+                t.setDaemon(true);
+                return t;
+            });
+            scheduler.scheduleAtFixedRate(
+                    () -> {
+                        if (dedup != null) dedup.reset();
+                    },
+                    RESET_INTERVAL_SECONDS, RESET_INTERVAL_SECONDS, TimeUnit.SECONDS);
     }
 }

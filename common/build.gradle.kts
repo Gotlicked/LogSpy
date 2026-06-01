@@ -15,6 +15,7 @@ java {
     withJavadocJar()
 }
 
+@Suppress("UnstableApiUsage")
 repositories {
     mavenCentral()
     exclusiveContent {
