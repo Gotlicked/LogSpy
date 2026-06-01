@@ -2,27 +2,21 @@ package net.gotlicked.logspy;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
+import net.gotlicked.logspy.core.util.LogSpyModResolver;
 
-/** Fabric main entrypoint. Registers mod JAR locations for log attribution. */
+import java.nio.file.Path;
+
 public final class LogSpyFabric implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        FabricLoader.getInstance().getAllMods().forEach(container -> {
-            String modId = container.getMetadata().getId();
-            container.getRootPaths().forEach(path -> {
-                try {
-                    ModResolver.registerUrl(path.toUri().toURL().toString(), modId);
-                } catch (Exception ignored) {}
-            });
-            ModResolver.registerPackage(sanitiseId(modId), modId);
+        FabricLoader.getInstance().getAllMods().parallelStream().forEach(container -> {
+            String modId       = container.getMetadata().getId();
+            String displayName = container.getMetadata().getName();
+            Path   jarPath     = container.getRootPaths().stream().findFirst().orElse(null);
+            LogSpyModResolver.registerMod(modId, displayName, jarPath);
         });
-        ModResolver.invalidateCache();
-        CommonClass.init();
-    }
-
-    /** Strips hyphens and underscores so a mod ID maps to a valid Java package prefix. */
-    private static String sanitiseId(String modId) {
-        return modId.replace("-", "").replace("_", "");
+        LogSpyModResolver.invalidateCache();
+        LogSpyCommon.init();
     }
 }

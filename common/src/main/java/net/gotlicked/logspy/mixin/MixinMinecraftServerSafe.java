@@ -1,10 +1,11 @@
 package net.gotlicked.logspy.mixin;
 
-import net.gotlicked.logspy.Constants;
+import net.gotlicked.logspy.LogSpyConstants;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import net.minecraft.server.MinecraftServer;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -18,7 +19,9 @@ import java.util.function.BooleanSupplier;
 @Mixin(MinecraftServer.class)
 public abstract class MixinMinecraftServerSafe {
 
+    @Unique
     private static final int MAX_CONSECUTIVE_FAILURES = 3;
+    @Unique
     private final AtomicInteger logspy$consecutiveFailures = new AtomicInteger(0);
 
     @WrapOperation(
@@ -33,7 +36,7 @@ public abstract class MixinMinecraftServerSafe {
             logspy$consecutiveFailures.set(0);
         } catch (RuntimeException e) {
             int failures = logspy$consecutiveFailures.incrementAndGet();
-            Constants.LOG.error("[LogSpy] RuntimeException in server tick ({}/{} before crash): {}",
+            LogSpyConstants.LOG.error("RuntimeException in server tick ({}/{} before crash): {}",
                     failures, MAX_CONSECUTIVE_FAILURES, e.getMessage(), e);
             if (failures >= MAX_CONSECUTIVE_FAILURES) throw e;
         }

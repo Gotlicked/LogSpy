@@ -1,7 +1,7 @@
-package net.gotlicked.logspy.platform;
+package net.gotlicked.logspy.services;
 
-import net.gotlicked.logspy.Constants;
-import net.gotlicked.logspy.platform.services.IPlatformHelper;
+import net.gotlicked.logspy.LogSpyConstants;
+
 import java.util.ServiceLoader;
 
 /** Loads platform-specific service implementations via Java's ServiceLoader. */
@@ -15,7 +15,7 @@ public final class Services {
         final T loadedService = ServiceLoader.load(clazz, Services.class.getClassLoader())
                 .findFirst()
                 .orElseThrow(() -> new NullPointerException("Failed to load service for " + clazz.getName()));
-        Constants.LOG.debug("Loaded {} for service {}", loadedService, clazz);
+        LogSpyConstants.LOG.debug("Loaded {} for service {}", loadedService, clazz);
         return loadedService;
     }
 }

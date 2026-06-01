@@ -1,4 +1,4 @@
-package net.gotlicked.logspy;
+package net.gotlicked.logspy.core.util;
 
 import org.apache.logging.log4j.core.LogEvent;
 
@@ -9,7 +9,7 @@ import java.util.function.Function;
 import java.util.regex.Pattern;
 
 /** Tracks repeated log messages and signals when they should be suppressed. */
-public final class DedupFilter {
+public final class LogSpyDedupFilter {
 
     public enum Result { PASS, SUPPRESS_FIRST, SUPPRESS }
 
@@ -44,7 +44,7 @@ public final class DedupFilter {
     /** Returns PASS, SUPPRESS_FIRST (emit one notice), or SUPPRESS (drop silently). */
     public Result check(LogEvent event) {
         String msg  = event.getMessage().getFormattedMessage();
-        String norm = msgNormCache.computeIfAbsent(msg, DedupFilter::normalise);
+        String norm = msgNormCache.computeIfAbsent(msg, LogSpyDedupFilter::normalise);
         String key  = event.getLoggerName() + '|' + event.getLevel() + '|' + norm;
 
         int n = counts.computeIfAbsent(key, NEW_COUNTER).incrementAndGet();

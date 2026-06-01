@@ -1,8 +1,8 @@
 package net.gotlicked.logspy;
 
 import net.fabricmc.loader.api.entrypoint.PreLaunchEntrypoint;
+import net.gotlicked.logspy.core.LogSpyCore;
 
-/** Fires before any ModInitializer, installing the LogSpy pipeline as early as possible. */
 public final class FabricPreLaunch implements PreLaunchEntrypoint {
 
     @Override

@@ -1,31 +1,34 @@
 package net.gotlicked.logspy;
 
+import net.gotlicked.logspy.core.LogSpyCore;
+import net.gotlicked.logspy.core.util.LogSpyModResolver;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.Mod;
 
-/** NeoForge @Mod entrypoint. Installs the pipeline and registers mod JAR locations. */
-@Mod(Constants.MOD_ID)
+import java.nio.file.Path;
+
+@Mod(LogSpyConstants.MOD_ID)
 public final class LogSpyNeoforge {
 
     public LogSpyNeoforge(IEventBus eventBus) {
         LogSpyCore.init();
-
-        ModList.get().getMods().forEach(info -> {
-            String modId = info.getModId();
-            try {
-                var filePath = info.getOwningFile().getFile().getFilePath();
-                ModResolver.registerUrl(filePath.toUri().toURL().toString(), modId);
-            } catch (Exception ignored) {}
-            ModResolver.registerPackage(sanitiseId(modId), modId);
+        ModList.get().getMods().parallelStream().forEach(info -> {
+            String modId       = info.getModId();
+            String displayName = info.getDisplayName();
+            Path   jarPath     = safeFilePath(info);
+            LogSpyModResolver.registerMod(modId, displayName, jarPath);
         });
-        ModResolver.invalidateCache();
+        LogSpyModResolver.invalidateCache();
 
-        CommonClass.init();
+        LogSpyCommon.init();
     }
 
-    /** Strips hyphens and underscores so a mod ID maps to a valid Java package prefix. */
-    private static String sanitiseId(String modId) {
-        return modId.replace("-", "").replace("_", "");
+    private static Path safeFilePath(net.neoforged.neoforgespi.language.IModInfo info) {
+        try {
+            return info.getOwningFile().getFile().getFilePath();
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 }
